@@ -1,0 +1,357 @@
+---
+title: "HayesModelNo58"
+output: html_document
+date: "2025-03-10"
+---
+##############################################
+#######Andrew Hayes Model No. 58##############
+##############################################
+
+getwd()
+#install.packages("haven")
+#install.packages("tidyverse")
+#install.packages("psych")
+#install.packages("Hmisc")
+#install.packages("lavaan")
+#install.packages("semTools")
+#install.packages("semPlot")
+#install.packages("stargazer")
+#install.packages("tibble")
+
+library(haven)
+library(tidyverse)
+library(psych)
+data2023 <- read_sav("DATA_2023.SAV")
+glimpse(data2023)
+
+#Data Truncation
+#data truncation#
+mydata1 <- data2023 %>%
+  select(starts_with("q30"),
+         starts_with("q34"),
+         starts_with("q37"),
+         starts_with("DM"))
+
+mydata1 %>%
+  count(DM1)
+
+#mydata2 <- data2023 %>%
+#  select(starts_with("q30"),
+#         starts_with("q34"),
+#         starts_with("q37"),
+#         starts_with("DM")) %>%
+#  filter(DM1 %in% c(2,3))  
+
+glimpse(mydata1)
+
+#Missing Treatment
+#mydata1 <- mydata1[complete.cases(mydata1), ] 
+#rm(mydata1)
+
+q1 <- table(mydata1$DM1)
+round(prop.table(q1),4)
+
+table(mydata1$DM3)
+q2 <- table(mydata1$DM3)
+round(prop.table(q2), 4)
+
+table(mydata1$DM5)
+q3 <- table(mydata1$DM5)
+round(prop.table(q3), 4)
+
+table(mydata1$DM4)
+q4 <- table(mydata1$DM4)
+round(prop.table(q4), 4)
+
+table(mydata1$DM6)
+q5 <- table(mydata1$DM6)
+round(prop.table(q5), 4)
+
+table(mydata1$DM7)
+q6 <- table(mydata1$DM7)
+round(prop.table(q6), 4)
+
+mydata1 %>%
+  count(DM7)
+
+#generating row means
+mydata1 <- mydata1 %>%
+  mutate(
+    m_psm =  rowMeans(across(starts_with("q30"))),
+    m_pv =  rowMeans(across(starts_with("q34"))),
+    m_pjs =  rowMeans(across(starts_with("q37"))))
+
+psm <- mydata1 %>%
+  select(starts_with("q30"))
+pv <- mydata1 %>%
+  select(starts_with("q34"))
+pjs <- mydata1 %>%
+  select(starts_with("q37"))
+
+#Check out Alphas
+alpha(psm)
+alpha(pv)
+alpha(pjs)
+
+#correlation analysis
+library(Hmisc)
+#using basic function
+m_var <- mydata1 %>%
+  select(DM2, DM3, DM4,,DM7,
+         (starts_with("m")))
+
+cor(m_var, use = "pairwise", method = "pearson")
+res3 <- rcorr(as.matrix(m_var))
+res3$r #r coefficient
+res3$P # p value
+res3$n # number of obs.
+str(res3)
+rcoeff3 <- res3$r
+write.csv(rcoeff3, 'correlation3.csv') #making a correlation table#
+#mean(raw.data$m_jcomp, na.rm=T)
+#sd(raw.data$m_jcomp, na.rm=T)
+
+mydata1 %>%
+  summarise(
+    mean1 = format(mean(DM2),nsmall=3),
+    mean2 = format(mean(DM3),nsmall=3),
+    mean3 = format(mean(DM4),nsmall=3),
+    mean4 = format(mean(DM7),nsmall=3),
+    mean5 = format(mean(m_psm),nsmall=3),
+    mean6 = format(mean(m_pv),nsmall=3),
+    mean7 = format(mean(m_pjs),nsmall=3)
+  )
+
+mydata1 %>%
+  summarise(
+    sd1 = sd(DM2),
+    sd2 = sd(DM3),
+    sd3 = sd(DM4),
+    sd4 = sd(DM7),
+    sd5 = sd(m_psm),
+    sd6 = sd(m_pv),
+    sd7 = sd(m_pjs)
+  )
+
+#explanatory factor analysis
+library(psych)
+exfac <-data.frame(psm, pv, pjs)
+#?fa
+exfa <- fa(exfac, rotate = "varimax") #checking out number of 
+exfa$e.values
+#checking eigenvaluesa
+exfa3 <- fa(exfac, nfactors = 3, rotate = "varimax") #checking out initial number of factors
+exfa3$e.values
+exfa3$loadings[]
+write.csv(loadings(exfa3), 'factorloadings3.csv')
+
+#confirmatory factor analysis
+library(lavaan)
+library(semTools)
+library(semPlot)
+library(stargazer)
+library(stargazer)
+library(tibble)
+
+#null model
+cfa.model0 <- '
+FA1 =~ q34_1 + q34_2 + q34_3 + q34_4 + q34_5 + q34_6 + q34_7 + q34_8
+      + q30_1 + q30_2 + q30_3 + q30_4 +q30_5 + q30_6  
+      + q37_1 + q37_2 + q37_3 + q37_4
+'
+null0 <- cfa(cfa.model0, data=mydata1)
+summary(null0, fit.measures=TRUE, rsquare=TRUE, standardized=TRUE)
+fitmeasures(null0, c("npar", "chisq", "df", "cfi", "rmsea", "srmr"))
+parameterEstimates(null0, standardized = T)
+semPaths(null0, whatLabels = "std", style = "lisrel", nCharNodes = 0)
+
+#expected model
+cfa.model1 <- '
+PV =~ q34_1 + q34_2 + q34_3 + q34_4 + q34_5 + q34_6 + q34_7 + q34_8 
+PSM =~ q30_1 + q30_2 + q30_3 + q30_4 +q30_5 + q30_6
+PJS =~  q37_1 + q37_2 + q37_3 + q37_4
+'
+mod1 <- cfa(cfa.model1, data=mydata1)
+summary(mod1, fit.measures=TRUE, rsquare=TRUE, standardized=TRUE)
+fitmeasures(mod1, c("npar", "chisq", "df", "cfi", "rmsea", "srmr"))
+parameterEstimates(mod1, standardized = T)
+modificationIndices(mod1, sort=TRUE)
+lavInspect(mod1, what = "rsquare")
+semPaths(mod1, what = "std", layout = "tree2", edge.label.cex = 0.7, edge.color = "royalblue",
+         color = list(lat="lightcoral", man="lavenderblush"), fade=F,
+         style = "lisrel", curvature = 2)
+
+semTools::reliability(mod1) #check out avevar for AVE & Omega for composite reliability
+semTools::reliability(mod1) %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column("Construct") %>%
+  select(Construct, "Composite Reliability"=omega,
+         "Average Variance Extracted"=avevar, "Cronbach's alpha"=alpha) %>%
+  stargazer(type = "text", title = "Convergent Validity and Reliability",
+            summary = F, digits = 3, digits.extra = 0, rownames = F)
+
+lavInspect(mod1, what = "cor.lv") 
+sqrt(0.517) #GA lv should less than this value 
+sqrt(0.602)
+sqrt(0.586)
+
+standardizedsolution(mod1)
+standardizedsolution(mod1) %>%
+  filter(op=="=~") %>%
+  mutate(stars=ifelse(pvalue < 0.001, "***",
+                      ifelse(pvalue < 0.01, "**",
+                             ifelse(pvalue < 0.05, "*", "")))) %>%
+  select(Construct=lhs, Item=rhs, "Factor Loading"=est.std,
+         Z=z, "p-value"=pvalue, sig.=stars) %>%
+  stargazer(type = "text", titile="Convergent Validity", summary = F,
+            digits = 3, digits.extra = 0, rownames = F)       
+
+
+##SEM 
+model1 <- '
+#meausrement part
+PSV =~ q34_1 + q34_2 + q34_3 + q34_4 + q34_5 + q34_6 + q34_7 + q34_8 
+PSM =~ q30_1 + q30_2 + q30_3 + q30_4 +q30_5 + q30_6
+POS =~  q37_1 + q37_2 + q37_3 + q37_4
+#regression part
+PSM ~ a*PV
+POS ~ b*PSM + c*PV
+#indirect effect
+ab := a*b
+#total effect
+t:= c + ab
+'
+model1 <- sem(model1, data = mydata1, se="bootstrap", bootstrap=1000)
+summary(model1, fit.measures=TRUE, rsquare=TRUE, standardized=TRUE)
+parameterestimates(model1, standardized = TRUE)
+fitmeasures(model1, c("npar", "chisq", "df", "cfi", "rmsea", "srmr"))
+semPaths(model1, what = "std", layout = "tree2", standardized = FALSE,
+         edge.label.cex = 0.7, rotation = 2, edge.color = "royalblue",
+         color = list(lat="lightcoral", man="lavenderblush"), fade=F,
+         style = "lisrel", curvature = 2)
+
+#SEM result
+parameterEstimates(model1, standardized = TRUE) %>%
+  filter(op=="~"|op==":=") %>%
+  mutate(stars=ifelse(pvalue < 0.01, "***",
+                      ifelse(pvalue < 0.05, "**",
+                             ifelse(pvalue < 0.1, "*", "")))) %>%
+  select(LHS=lhs, RHS=rhs, Label=label, Coefficients=std.all, SE=se, 
+         Z=z, low=ci.lower, high=ci.upper, "p-value"=pvalue, Sig.=stars) %>%
+  stargazer(type = "text", title = "Regression Coefficients",
+            summary = F, digits = 3, digits.extra = 0, rownames = F)
+
+standardizedSolution(model1, type = "std.all") ##check out standarized standard errors
+
+#Mediated-Moderation Model
+modmed.data <- indProd(
+  mydata1,
+  var1 = c("q34_1", "q34_2", "q34_3", "q34_4", "q34_5", "q34_6", "q34_7", "q34_8"),
+  var2 = c("q30_1", "q30_2", "q30_3", "q30_4", "q30_5", "q30_6"),
+  var3 = "DM5",
+  match = FALSE,  # 필요에 따라 TRUE로 변경
+  meanC = TRUE,
+  residualC = FALSE,
+  doubleMC = TRUE
+)
+
+#using base package for interaction terms#
+#for (i in 1:8) {
+#  data[[paste0("q34_", i, ".DM5")]] <- scale(data[[paste0("q34_", i)]] * data$DM5)
+#}
+#for (i in 1:6) {
+#  data[[paste0("q30_", i, ".DM5")]] <- scale(data[[paste0("q30_", i)]] * data$DM5)
+#}
+
+names(modmed.data) #please check out the interaction terms
+
+#Andrew Hayes model 58#
+sem.modmed1 <- '
+#only measurement model
+#meausrement part
+PSV =~ q34_1 + q34_2 + q34_3 + q34_4 + q34_5 + q34_6 + q34_7 + q34_8 
+PSM =~ q30_1 + q30_2 + q30_3 + q30_4 +q30_5 + q30_6
+POS =~  q37_1 + q37_2 + q37_3 + q37_4
+#Interaction Terms
+PVJT =~ q34_1.DM5 + q34_2.DM5 + q34_3.DM5 + q34_4.DM5 + q34_5.DM5 + q34_6.DM5 + q34_7.DM5 + q34_8.DM5
+PSMJT =~ q30_1.DM5 + q30_2.DM5 + q30_3.DM5 + q30_4.DM5 + q30_5.DM5 + q30_6.DM5 
+#regression part
+PSM ~ a1*PSV + a2*DM5 + a3*PVJT
+POS ~ c1*PSV +  b1*PSM + b2*DM5 + b3*PSMJT
+#mean and variance of moderator
+DM5 ~ DM5.mean*1
+DM5 ~~ DM5.var*DM5
+mean.scores := DM5.mean
+sd.scores := sqrt(DM5.var)
+#indirect effect of conditional on moderator
+#(a1+a3*moderatorvalue)*(b1+b3moderationvalue)
+indirect.low := (a1+a3*(mean.scores-sd.scores))*(b1+b3*(mean.scores-sd.scores))
+indirect.mean := (a1+a3*(mean.scores))*(b1+b3*(mean.scores))
+indirect.high := (a1+a3*(mean.scores+sd.scores))*(b1+b3*(mean.scores+sd.scores))
+#direct effect
+direct := c1
+#total effect
+total.low := direct + indirect.low
+total.mean := direct + indirect.mean
+total.high := direct + indirect.high
+#index of moderated mediation
+mod.med := (a1+a3)*(b1+b3)
+'
+set.seed(123)
+fit.modmed <- sem(model = sem.modmed1, data = modmed.data,  se="bootstrap", bootstrap = 1000)
+summary(fit.modmed, standardized = T)
+fitmeasures(fit.modmed, c("npar", "chisq", "df", "cfi", "rmsea", "srmr"))
+
+#making summary table
+library(dplyr)
+library(stargazer)
+library(tibble)
+
+parameterEstimates(fit.modmed, standardized = T) %>%
+  filter(op=="~"|op==":=") %>%
+  mutate(stars=ifelse(pvalue < 0.001, "***",
+                      ifelse(pvalue < 0.01, "**",
+                             ifelse(pvalue < 0.05, "*", "")))) %>%
+  select(LHS=lhs, coefficients=est, SE=se,
+         Z=z, low=ci.lower, high=ci.upper, "p-value"=pvalue, Sig.=stars) %>%
+  stargazer(type = "text", title = "Regression Coefficients",
+            summary = F, digits = 3, digits.extra = 0, rownames = F)
+
+#linear combination test
+lavTestWald(fit.modmed, constraints = "direct == 0")
+con = '
+   direct==0
+   indirect.low == 0
+'
+lavTestWald(fit.modmed, constraints = con)
+
+#common method bias test
+cmv.mod0 <- '
+#only measurement model
+PV =~ q33_1 + q33_2 + q33_3 + q33_4 + q33_5 + q33_6 + q33_7 + q33_8 
+PSM =~ q29_1 + q29_2 + q29_3 + q29_4 +q29_5 + q29_6
+PJS =~  q36_1 + q36_2 + q36_3 + q36_4
+'
+cmv.mod0 <- sem(model = cmv.mod0, data = data)
+summary(cmv.mod0, standardized=TRUE)
+semPaths(cmv.mod0, whatLabels = "std", style = "lisrel", nCharNodes = 0)
+
+#common method bias constrained model
+cmv.mod1 <- '
+#only measurement model
+PV =~ q33_1 + q33_2 + q33_3 + q33_4 + q33_5 + q33_6 + q33_7 + q33_8 
+PSM =~ q29_1 + q29_2 + q29_3 + q29_4 +q29_5 + q29_6
+PJS =~  q36_1 + q36_2 + q36_3 + q36_4
+cmv =~ a*q33_1 + a*q33_2 + a*q33_3 + a*q33_4 + a*q33_5 + a*q33_6 + a*q33_7 + a*q33_8 +
+       a*q29_1 + a*q29_2 + a*q29_3 + a*q29_4 + a*q29_5 + a*q29_6 +
+       a*q36_1 + a*q36_2 + a*q36_3 + a*q36_4
+cmv ~~ 0*PV
+cmv ~~ 0*PSM
+cmv ~~ 0*PJS
+'
+cmv.mod1 <- sem(model = cmv.mod1, data = data)
+summary(cmv.mod1, standardized=TRUE)
+semPaths(cmv.mod1, whatLabels = "std", style = "lisrel", nCharNodes = 0)
+anova(cmv.mod0, cmv.mod1)
+
