@@ -1,0 +1,291 @@
+---
+title: "Gauss_Markov Theorem Simmulation"
+output: html_document
+date: "2025-03-14"
+---
+##########################################################
+#################Simple Regression Simulation#############
+##########################################################
+#install.packages("lmtest")
+#install.packages("sandwich")
+
+#Simple Regression Simulation#
+set.seed(123)  # 재현성을 위해 난수 시드 설정
+n <- 10000  # 데이터 포인트 개수
+x <- runif(n, 1, 10)  # 1에서 10 사이의 균등분포를 따르는 독립 변수
+
+# orginal y
+y1 <- 5 + 0.7 * x + rnorm(n, mean = 0, sd = 10)  # 이분산성 포함 데이터 생성 
+#constant =5, beta=0.7
+
+model1 <- lm(y1~x)
+summary(model1)
+
+# calculating betas
+mean_x <- mean(x)
+mean_y <- mean(y1)
+numerator <- sum((x - mean_x) * (y1 - mean_y))
+denominator <- sum((x - mean_x)^2)
+beta_1 <- numerator / denominator
+beta_0 <- mean_y - beta_1 * mean_x
+cat("기울기(β1):", beta_1, "\n")
+cat("절편(β0):", beta_0, "\n")
+
+print(beta0_value <- coef(model1)[1])
+print(beta1_value <- coef(model1)[2])
+
+# calculating standard error
+residuals2 <- residuals(model1)
+n <- length(y1)  # 샘플 수
+residual_sum_squares <- sum(residuals2^2)
+sigma_hat_squared <- residual_sum_squares / (n - 2)  # 잔차 제곱합에 대한 추정값
+se_beta_1 <- sqrt(sigma_hat_squared / sum((x - mean(x))^2))  # 기울기의 표준 오차
+se_beta_0 <- sqrt(sigma_hat_squared * (1 / n + mean(x)^2 / sum((x - mean(x))^2)))  # 절편의 표준 오차
+cat("기울기의 표준 오차:", se_beta_1, "\n")
+cat("절편의 표준 오차:", se_beta_0, "\n")
+
+print(se0_value <- summary(model1)$coefficients[2, 1])
+print(se1_value <- summary(model1)$coefficients[2, 2])
+print(var_y_value <- var(y1))
+
+##########################################################
+#################Heteroscedasticity Problem##############
+##########################################################
+library(lmtest) #for Breusch-Pagan Test and White Test
+
+# residuals with heteroscedasticity problem
+sigma <- 0.9 * x  # 표준편차가 x에 따라 증가
+residual3 <- residuals + rnorm(n, mean = 0, sd = sigma)  # 이분산성 포함 데이터 생성 
+
+y2 <- y1+residual3
+
+#modeling
+model2 <- lm(y2~x)
+summary(model2)
+
+#Breusch-Pagan Test
+bptest(model2) #finding HT problem
+#White Test
+bptest(model2, ~ fitted(model2) + I(fitted(model2)^2))
+
+summary(model1)
+summary(model2)
+
+# 시각화: 잔차의 이분산성 확인
+par(mfrow = c(2, 2))  # 플롯을 2x2 레이아웃으로 설정
+par(mar = c(4, 4, 3, 1)) 
+
+# 1. 데이터 분포
+plot(x, y2, main = "Scatter Plot of x and y", 
+     xlab = "x", ylab = "y", col = "blue", pch = 20)
+abline(model2, col = "red", lwd = 2)  # 회귀선 추가
+
+# 2. Residuals vs Fitted Plot
+plot(fitted(model2), residuals, main = "Residuals vs Fitted",
+     xlab = "Fitted Values", ylab = "Residuals", pch = 20, col = "darkgreen")
+abline(h = 0, col = "red", lwd = 2)  # 기준선 추가
+
+# 3. Scale-Location Plot
+plot(fitted(model2), sqrt(abs(residuals)), 
+     main = "Scale-Location Plot",
+     xlab = "Fitted Values", ylab = "Sqrt(|Residuals|)", pch = 20, col = "purple")
+abline(h = 0, col = "red", lwd = 2)
+
+# 4. Normal Q-Q Plot
+qqnorm(residuals, main = "Normal Q-Q Plot", pch = 20, col = "orange")
+qqline(residuals, col = "red", lwd = 2)
+
+#calculating robust standard errors
+library(sandwich)
+
+# using matrix(vcovHC)
+robust_se <- sqrt(diag(vcovHC(model2))) 
+print(robust_se)
+
+robust_se_HC3 <- sqrt(diag(vcovHC(model, type = "HC3"))) #Most conservative correction
+print(robust_se_HC3)
+
+##############################################################
+#################Multicolinnearity Problem####################
+##############################################################
+
+install.packages("car")
+library(car)
+
+set.seed(123) 
+n <- 1000
+
+x1 <- rnorm(n, mean = 10, sd = 5)
+x2 <- x1 + rnorm(n, mean = 0, sd = 1) #x2 has a high correlation with x1 
+x3 <- rnorm(n, mean=0, sd=1)
+y <- 5 + 3 * x1 - 2 * x2 + rnorm(n, mean = 0, sd = 5) #model1: MC problem exists
+y <- 5 + 3 * x1 - 2 * x3 + rnorm(n, mean = 0, sd = 5) #model2: MC problem no exists
+data1 <- data.frame(y = y, x1 = x1, x2 = x2, x3=x3)
+
+m.model1 <- lm(y ~ x1 + x2, data = data1)
+summary(m.model1)
+
+m.model2 <- lm(y ~ x1 + x3, data = data1)
+summary(m.model2)
+
+
+# Checking Out Muticollinearity Problem
+vif_values1 <- vif(m.model1)
+print(vif_values1)
+# if vif values is bigger than 10, this means a multicollinearity problem
+
+vif_values2 <- vif(m.model2)
+print(vif_values2)
+# if vif values is bigger than 10, this means a multicollinearity problem
+
+# visualization of x1 and x2
+par(mfrow = c(1, 2))
+plot(data1$x1, data1$x2, main = "x1과 x2의 상관성",
+     xlab = "x1", ylab = "x2", col = "blue", pch = 19)
+
+plot(data1$x1, data1$x3, main = "x1과 x2의 상관성",
+     xlab = "x1", ylab = "x2", col = "blue", pch = 19)
+
+#Solution for MC problem
+#1. mean_centering method to decrease MC problem
+data("mtcars")
+head(mtcars)
+plot(mtcars$wt, mtcars$disp, main = "WT과 DISP의 상관성",
+     xlab = "WT", ylab = "DISP", col = "blue", pch = 19)
+cor(mtcars$wt, mtcars$disp, method = "spearman")
+
+m.model3 <- lm(mtcars$mpg ~ mtcars$wt + mtcars$disp, data = mtcars)
+summary(m.model3)
+vif(m.model3)
+
+mtcars$wt_scaled <- scale(mtcars$wt)
+mtcars$disp_scaled <- scale(mtcars$disp)
+head(mtcars)
+
+m.model4 <- lm(mtcars$mpg ~ mtcars$wt_scaled + mtcars$disp_scaled, data = mtcars)
+summary(m.model4)
+vif(m.model4)
+
+#2. Dimenstion Reduction Technique
+#USing principle component analysis
+
+
+#3. RASSO & Ridge Regression
+
+#####################################################
+######## Omitted Variable Bias Simulation in R#######
+#####################################################
+
+set.seed(123)
+
+# Generate data
+n <- 1000  # Sample size
+X1 <- rnorm(n, mean = 5, sd = 2)  # Predictor 1
+X2 <- rnorm(n, mean = 3, sd = 1)  # Predictor 2 (omitted variable)
+
+# True relationship
+beta1 <- 2    # Coefficient for X1
+beta2 <- 3    # Coefficient for X2
+epsilon <- rnorm(n, mean = 0, sd = 1)  # Random error
+Y <- beta1 * X1 + beta2 * X2 + epsilon
+
+# Perform regression with both X1 and X2 (true model)
+true_model <- lm(Y ~ X1 + X2)
+summary(true_model)
+
+# Perform regression with only X1 (omitted variable model)
+omitted_model <- lm(Y ~ X1)
+summary(omitted_model)
+
+# Display results
+cat("True Model Coefficients:\n")
+print(coef(true_model))
+
+cat("\nOmitted Variable Model Coefficients:\n")
+print(coef(omitted_model))
+
+# Analyze the bias
+cat("\nTrue Beta1:", beta1)
+cat("\nEstimated Beta1 with Omitted Variable:", coef(omitted_model)["X1"])
+
+# Visualization
+library(ggplot2)
+
+data <- data.frame(Y, X1, X2)
+
+# Scatter plot of Y vs X1
+ggplot(data, aes(x = X1, y = Y)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +
+  ggtitle("Regression with X1 (Omitted Variable Bias)") +
+  theme_minimal()
+
+# Scatter plot of Y vs X1, X2
+ggplot(data, aes(x = X1, y = Y)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", formula = y ~ x + X2, color = "green", se = FALSE) +
+  ggtitle("True Regression with X1 and X2") +
+  theme_minimal()
+
+
+#######################################################
+######## Autocorrelation Problem Simulation in R#######
+#######################################################
+# data_generating function
+
+generate_data <- function(n, autocorrelation = FALSE) {
+  set.seed(123) 
+  x <- 1:n
+  if (autocorrelation) {
+    rho <- 0.8 # generating residuals with rho=0.8
+    e <- numeric(n)
+    e[1] <- rnorm(1)
+    for (i in 2:n) {
+      e[i] <- rho * e[i - 1] + rnorm(1)
+    }
+  } else {
+    e <- rnorm(n) #generating residuals with no autocor problem
+  }
+  
+  y <- 5 + 2 * x + e # 선형 관계에 오차 추가
+  data.frame(x = x, y = y)
+}
+
+# 데이터 생성
+n <- 1000
+data_independent <- generate_data(n, autocorrelation = FALSE) # 자기상관 없음
+data_autocorrelated <- generate_data(n, autocorrelation = TRUE) # 자기상관 있음
+
+# 회귀분석
+model_independent <- lm(y ~ x, data = data_independent)
+model_autocorrelated <- lm(y ~ x, data = data_autocorrelated)
+
+# 결과 시각화
+plot_data <- function(data, model, title) {
+  ggplot(data, aes(x = x, y = y)) +
+    geom_point(color = "blue", alpha = 0.6) +
+    geom_smooth(method = "lm", color = "red", se = FALSE) +
+    labs(title = title, x = "x", y = "y") +
+    theme_minimal()
+}
+
+plot1 <- plot_data(data_independent, model_independent, "Without Autocorrelation")
+plot2 <- plot_data(data_autocorrelated, model_autocorrelated, "With Autocorrelation")
+
+# 잔차 시각화
+residual_plot <- function(model, title) {
+  residuals <- resid(model)
+  data <- data.frame(Index = 1:length(residuals), Residuals = residuals)
+  ggplot(data, aes(x = Index, y = Residuals)) +
+    geom_line(color = "blue", alpha = 0.6) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+    labs(title = title, x = "Index", y = "Residuals") +
+    theme_minimal()
+}
+
+residual_plot1 <- residual_plot(model_independent, "Residuals (Without Autocorrelation)")
+residual_plot2 <- residual_plot(model_autocorrelated, "Residuals (With Autocorrelation)")
+
+# 플롯 출력
+library(gridExtra)
+grid.arrange(plot1, plot2, residual_plot1, residual_plot2, ncol = 2)
