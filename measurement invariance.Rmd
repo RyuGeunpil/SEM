@@ -1,0 +1,152 @@
+---
+title: "Measurement Invariance"
+output: html_document
+date: "2025-04-07"
+---
+
+### PART2: MEASUREMENT INVARIANCE ###
+
+### DATA PREPRATION ###
+
+#uncomment two lines below if packages are not installed
+#install.packages("lavaan", dependencies=TRUE)
+#install.packages("lme4", dependencies=TRUE)
+
+#load libraries
+library(lavaan)
+library(lme4)
+
+#load datasets
+widedat <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2021/08/gpa_wide.csv")
+longdat <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2021/08/gpa_long.csv")
+hsbdemo <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2021/07/hsbdemo.csv", stringsAsFactors=TRUE)
+#separate cfa models
+onefac <- 'f1  =~ read + write + math + science'
+summary(onefac)
+
+#equivalent meanstructure
+onefac_b <- 'f1  =~ read + write + math + science
+        read ~ 1
+        write ~ 1
+        math ~ 1
+        science ~ 1'
+
+#split dataset by gender
+femaledat<- subset(hsbdemo,female=="female")
+maledat<- subset(hsbdemo,female=="male")
+dim(femaledat)
+dim(maledat)
+
+fitfemale <- cfa(onefac, data = femaledat, meanstructure = TRUE)
+summary(fitfemale, standardized=TRUE)
+
+fitmale <- cfa(onefac, data = maledat, meanstructure = TRUE)
+summary(fitmale, standardized=TRUE)
+
+# configural invariance
+fit.Configural <- cfa(onefac, data = hsbdemo, group = "female", meanstructure = TRUE)
+summary(fit.Configural, standardized=TRUE)
+fitMeasures(fit.Configural, "cfi")
+
+#  metric (weak) invariance 
+fit.Metric <- cfa(onefac, data = hsbdemo, group = "female", group.equal = c("loadings"), meanstructure = TRUE)
+summary(fit.Metric, standardized=TRUE)
+fitMeasures(fit.Metric, "cfi")
+
+#Exercise 2A
+#one factor, variance std method (WRONG) 
+onefac_varstd <- 'f1  =~ NA*read + write + math + science
+           f1 ~~ c(1,1)*f1'
+
+# metric invariance (WRONG)
+fit.MetricWRONG <- cfa(onefac_varstd , data = hsbdemo, group = "female", group.equal=c("loadings"),meanstructure = TRUE)
+summary(fit.MetricWRONG)
+
+#one factor, variance std method (CORRECT) 
+onefac_varstd <- 'f1  =~ NA*read + write + math + science
+           f1 ~~ c(1,NA)*f1'
+# metric invariance (CORRECT)
+fit.MetricCORRECT <- cfa(onefac_varstd , data = hsbdemo, group = "female", group.equal=c("loadings"),meanstructure = TRUE)
+summary(fit.MetricCORRECT)
+
+#Exercise 2B
+#metric (weak) invariance, manual variance std method 
+onefac_varstd2 <- 'f1  =~ c(NA,NA)*read + c(a,a)*read + c(b,b)*write + c(c,c)*math + c(d,d)*science
+                   f1 ~~ c(1,NA)*f1'
+
+#metric (weak) invariance, manual variance std method
+fit.MetricVS <- cfa(onefac_varstd2 , data = hsbdemo, group = "female", meanstructure = TRUE)
+summary(fit.MetricVS)
+
+# scalar (strong) invariance
+fit.Scalar <- cfa(onefac, data = hsbdemo, group = "female", group.equal = c("loadings","intercepts"), meanstructure = TRUE)
+summary(fit.Scalar, standardized=TRUE)
+fitMeasures(fit.Scalar, "cfi")
+
+# scalar (strong) invariance manual method
+onefac_strong <- 'f1  =~ c(1,1)*read + c(a,a)*write + c(b,b)*math + c(c,c)*science
+                  read ~ c(d,d)*1
+                  write ~ c(e,e)*1
+                  math ~ c(f,f)*1
+                  science ~ c(g,g)*1
+                  f1 ~ c(0,NA)*1'
+fit.Residual <- cfa(onefac_strong, data = hsbdemo, group = "female", meanstructure = TRUE)
+summary(fit.Residual, standardized=TRUE, fit.measures=TRUE)
+
+# residual invariance
+fit.Residual <- cfa(onefac, data = hsbdemo, group = "female", group.equal = c("loadings","intercepts","residuals"), meanstructure = TRUE)
+summary(fit.Residual, standardized=TRUE)
+fitMeasures(fit.Residual, "cfi")
+
+#residual invariance manual method
+onefac_resid <- 'f1  =~ c(1,1)*read + c(a,a)*write + c(b,b)*math + c(c,c)*science
+                  #strong invariance
+                  read ~ c(d,d)*1
+                  write ~ c(e,e)*1
+                  math ~ c(f,f)*1
+                  science ~ c(g,g)*1
+                  f1 ~ c(0,NA)*1
+                  #residual invariance
+                  read ~~ c(h,h)*read
+                  write ~~ c(i,i)*write
+                  math ~~ c(j,j)*math
+                  science ~~ c(k,k)*science'
+fit.Residual2 <- cfa(onefac_resid, data = hsbdemo, group = "female", meanstructure = TRUE)
+summary(fit.Residual2, standardized=TRUE)
+
+# model comparison tests
+lavTestLRT(fit.Configural, fit.Metric, fit.Scalar, fit.Residual)
+
+#manual chi-square difference test
+pchisq(q=4.179,df=3,lower.tail=FALSE)
+#alternatively
+1-pchisq(q=4.179,df=3,lower.tail=TRUE)
+
+# partial measurement invariance
+onefac_d <- 'f1  =~ read + write + c(a,b)*math + science
+        read ~ 1
+        write ~ 1
+        math ~ 1
+        science ~ 1'
+fit.Partial <- cfa(onefac_d, data = hsbdemo, group = "female", group.equal = c("loadings"), meanstructure = TRUE)
+summary(fit.Partial, standardized=TRUE)
+lavTestLRT(fit.Configural, fit.Partial)
+
+#Exercise 3A
+onefac_c <- 'f1  =~ c(a,b)*read + write + math + science
+        read ~ 1
+        write ~ 1
+        math ~ 1
+        science ~ 1'
+fit.Partial2 <- cfa(onefac_c, data = hsbdemo, group = "female", group.equal = c("loadings"), meanstructure = TRUE)
+summary(fit.Partial2, standardized=TRUE)
+
+#Exercise 3B (challenge)
+onefac_e <- 'f1  =~ c(NA,NA)*read + c(1,1)*write + math + science
+        read ~ 1
+        write ~ 1
+        math ~ 1
+        science ~ 1'
+fit.Partial3 <- cfa(onefac_e, data = hsbdemo, group = "female", group.equal = c("loadings"), meanstructure = TRUE, auto.fix.first = FALSE)
+summary(fit.Partial3, standardized=TRUE)
+lavTestLRT(fit.Configural, fit.Partial3)
