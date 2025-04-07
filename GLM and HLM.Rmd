@@ -1,0 +1,99 @@
+---
+title: "LGM and HLM"
+output: html_document
+date: "2025-04-06"
+---
+
+### DATA PREPRATION ###
+
+#uncomment two lines below if packages are not installed
+#install.packages("lavaan", dependencies=TRUE)
+#install.packages("lme4", dependencies=TRUE)
+
+#load libraries
+library(lavaan)
+library(lme4)
+
+#load datasets
+widedat <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2021/08/gpa_wide.csv")
+longdat <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2021/08/gpa_long.csv")
+hsbdemo <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2021/07/hsbdemo.csv", stringsAsFactors=TRUE)
+
+### PART 1: GROWTH MODEL ###
+
+#Ordinal versus measured time in an LGM
+m2 <-   'i =~ 1*gpa0 + 1*gpa1 + 1*gpa2 + 1*gpa3 + 1*gpa4 
+         s =~ 0*gpa0 + 3*gpa1 + 6*gpa2 + 9*gpa3 + 12*gpa4'
+fit_m2 <- growth(m2, data=widedat)
+summary(fit_m2)
+
+#Equivalence of the LGM to the hierarchical linear model (HLM)
+m3 <- lmer(gpa ~ time + (time|student),dat=longdat)
+summary(m3)
+#variance covariance matrix
+as.data.frame(VarCorr(m3))
+
+#LGM with homogenous residual variance
+m4 <-   'i =~ 1*gpa0 + 1*gpa1 + 1*gpa2 + 1*gpa3 + 1*gpa4  
+          s =~ 0*gpa0 + 1*gpa1 + 2*gpa2 + 3*gpa3 + 4*gpa4  
+          gpa0 ~~ a*gpa0
+          gpa1 ~~ a*gpa1
+          gpa2 ~~ a*gpa2
+          gpa3 ~~ a*gpa3
+          gpa4 ~~ a*gpa4'
+fit_m4 <- growth(m4, data=widedat)
+summary(fit_m4)
+
+#Adding a predictor to the latent growth model (LGM)
+m5 <-   'i =~ 1*gpa0 + 1*gpa1 + 1*gpa2 + 1*gpa3 + 1*gpa4  
+         s =~ 0*gpa0 + 1*gpa1 + 2*gpa2 + 3*gpa3 + 4*gpa4
+         i ~ sex
+         s ~ sex
+         gpa0 ~~ a*gpa0
+         gpa1 ~~ a*gpa1
+         gpa2 ~~ a*gpa2
+         gpa3 ~~ a*gpa3
+         gpa4 ~~ a*gpa4'
+fit_m5 <- growth(m5, data=widedat)
+summary(fit_m5)
+
+#Exercise 1 (challenge), try to match m5 with cfa() instead of growth() in lavaan
+#what is wrong with this output?
+m6 <-    'i =~ 1*gpa0 + 1*gpa1 + 1*gpa2 + 1*gpa3 + 1*gpa4 
+          s =~ 0*gpa0 + 1*gpa1 + 2*gpa2 + 3*gpa3 + 4*gpa4
+          i ~ sex
+          s ~ sex
+          #constrain the residual variances
+          gpa0 ~~ a*gpa0
+          gpa1 ~~ a*gpa1
+          gpa2 ~~ a*gpa2
+          gpa3 ~~ a*gpa3
+          gpa4 ~~ a*gpa4'
+fit_m6 <- cfa(m6, data=widedat,meanstructure=TRUE)
+summary(fit_m6)
+
+#correct, matches m5
+m7 <-    'i =~ 1*gpa0 + 1*gpa1 + 1*gpa2 + 1*gpa3 + 1*gpa4  
+          s =~ 0*gpa0 + 1*gpa1 + 2*gpa2 + 3*gpa3 + 4*gpa4
+          #observed intercepts constrained to 0
+          gpa0 ~ 0 
+          gpa1 ~ 0 
+          gpa2 ~ 0 
+          gpa3 ~ 0 
+          gpa4 ~ 0 
+          #estimate intercept and slope means, add gender as a predictor
+          i ~ 1 + sex
+          s ~ 1 + sex
+          #constrain the residual variances
+          gpa0 ~~ a*gpa0
+          gpa1 ~~ a*gpa1
+          gpa2 ~~ a*gpa2
+          gpa3 ~~ a*gpa3
+          gpa4 ~~ a*gpa4'
+fit_m7 <- cfa(m7, data=widedat, meanstructure=TRUE)
+summary(fit_m7)
+
+m8 <- lmer(gpa ~ time + sex + time:sex + (time|student),dat=longdat)
+summary(m8)
+#variance covariance matrix
+as.data.frame(VarCorr(m8))
