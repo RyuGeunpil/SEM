@@ -1,0 +1,66 @@
+---
+title: "Bootstrapping and Jackknife Methods"
+output: html_document
+date: "2025-04-13"
+---
+
+#Jackknife method eliminates is in the every reputations 
+#while bootstrapping use resamppling of the sameples
+
+# Jackknife 
+###Jackknife Methods####
+data <- c(5, 7, 8, 6, 9)
+
+# 전체 데이터의 평균
+original_mean <- mean(data)
+
+# 잭나이프 재표본화
+n <- length(data)
+jackknife_means <- numeric(n)
+
+# 각 데이터 포인트를 제거하며 평균 계산
+for (i in 1:n) {
+  jackknife_sample <- data[-i]  # i번째 데이터 제거
+  jackknife_means[i] <- mean(jackknife_sample)  # 평균 계산
+}
+
+# 잭나이프 평균 계산
+jackknife_mean <- mean(jackknife_means)
+
+# 편향 추정 (원래 평균과 잭나이프 평균의 차이)
+bias <- (n - 1) * (jackknife_mean - original_mean)
+
+# 표준 오차 추정
+standard_error <- sqrt((n - 1) * mean((jackknife_means - jackknife_mean)^2))
+
+# 결과 출력
+cat("Original Mean:", original_mean, "\n")
+cat("Jackknife Mean:", jackknife_mean, "\n")
+cat("Bias Estimate:", bias, "\n")
+cat("Standard Error Estimate:", standard_error, "\n")
+
+
+##Bootstrapping Methods###
+# 데이터 샘플
+set.seed(123)  # 재현성을 위해 시드 설정
+data <- c(5, 7, 8, 6, 9)
+
+# 부스트래핑 설정
+n <- length(data)  # 데이터 크기
+B <- 1000          # 부스트랩 반복 횟수
+bootstrap_means <- numeric(B)
+
+# 부스트랩 샘플 생성 및 평균 계산
+for (i in 1:B) {
+  bootstrap_sample <- sample(data, size = n, replace = TRUE)  # 중복 허용 샘플링
+  bootstrap_means[i] <- mean(bootstrap_sample)               # 평균 계산
+}
+
+# 신뢰 구간 계산 (예: 95% 신뢰 구간)
+alpha <- 0.05
+lower_bound <- quantile(bootstrap_means, probs = alpha / 2)
+upper_bound <- quantile(bootstrap_means, probs = 1 - alpha / 2)
+
+# 결과 출력
+cat("Bootstrap Mean:", mean(bootstrap_means), "\n")
+cat("95% Confidence Interval: [", lower_bound, ", ", upper_bound, "]\n")
